@@ -13,6 +13,11 @@
     "moduleResolution": "node",
     "resolveJsonModule": true
   },
-  "include": ["src/**/*", "test/**/*"],
-  "exclude": ["node_modules"],
+  "include": [
+    "app/**/*",
+    "test/**/*"
+  ],
+  "exclude": [
+    "node_modules"
+  ],
 }

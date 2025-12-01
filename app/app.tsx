@@ -4,8 +4,10 @@ import { BsArrowUpLeftSquare, BsTable, BsBoundingBoxCircles, BsSlashLg } from 'r
 import '@xyflow/react/dist/style.css';
 import './global.css';
 import { useState, useCallback } from 'react';
-import { ReactFlow, Controls, Background, NodeChange, applyNodeChanges, Node } from '@xyflow/react';
+import { ReactFlow, Controls, Background, NodeChange, applyNodeChanges, Node, addEdge, Connection, Edge, useEdgesState, ConnectionLineType, MarkerType } from '@xyflow/react';
 import TableNode from './nodes/TableNode';
+import TableEditor from './components/TableEditor';
+import EdgeEditor from './components/EdgeEditor';
 
 interface TableNodeData extends Record<string, unknown> {
     tableName: string;
@@ -50,10 +52,61 @@ const App = () => {
     ];
 
     const [nodes, setNodes] = useState<Node<TableNodeData>[]>(initialNodes);
+    const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+    const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+    const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+
     const onNodesChange = useCallback(
         (changes: NodeChange[]) => setNodes((nds) => applyNodeChanges(changes, nds) as Node<TableNodeData>[]),
         [],
     );
+
+    const onConnect = useCallback(
+        (params: Connection) => setEdges((eds) => addEdge({ ...params, type: ConnectionLineType.SmoothStep, markerEnd: { type: MarkerType.ArrowClosed } }, eds)),
+        [setEdges],
+    );
+
+    const onNodeClick = (_: React.MouseEvent, node: Node) => {
+        if (node.type === 'table') {
+            setSelectedNodeId(node.id);
+            setSelectedEdgeId(null);
+        } else {
+            setSelectedNodeId(null);
+        }
+    };
+
+    const onEdgeClick = (_: React.MouseEvent, edge: Edge) => {
+        setSelectedEdgeId(edge.id);
+        setSelectedNodeId(null);
+    };
+
+    const onPaneClick = () => {
+        setSelectedNodeId(null);
+        setSelectedEdgeId(null);
+    };
+
+    const handleTableUpdate = (updatedData: TableNodeData) => {
+        setNodes((nds) =>
+            nds.map((node) => {
+                if (node.id === selectedNodeId) {
+                    return { ...node, data: updatedData };
+                }
+                return node;
+            })
+        );
+    };
+
+    const handleEdgeUpdate = (edgeId: string, updates: Partial<Edge>) => {
+        setEdges((eds) => eds.map((e) => (e.id === edgeId ? { ...e, ...updates } : e)));
+    };
+
+    const handleEdgeDelete = (edgeId: string) => {
+        setEdges((eds) => eds.filter((e) => e.id !== edgeId));
+        setSelectedEdgeId(null);
+    };
+
+    const selectedNode = nodes.find((n) => n.id === selectedNodeId);
+    const selectedEdge = edges.find((e) => e.id === selectedEdgeId);
 
     const handleToolChange = (toolValue: number) => {
 
@@ -92,13 +145,41 @@ const App = () => {
                 </ToggleButtonGroup>
             </header>
 
-            <main className="flex-1">
+            <main className="flex-1 relative">
                 <div className="relative h-full w-full">
-                    <ReactFlow proOptions={{ hideAttribution: true }} nodes={nodes} nodeTypes={{ table: TableNode }} onNodesChange={onNodesChange} style={{ backgroundColor: "#F7F9FB" }}>
+                    <ReactFlow
+                        proOptions={{ hideAttribution: true }}
+                        nodes={nodes}
+                        edges={edges}
+                        nodeTypes={{ table: TableNode }}
+                        onNodesChange={onNodesChange}
+                        onEdgesChange={onEdgesChange}
+                        onConnect={onConnect}
+                        onNodeClick={onNodeClick}
+                        onEdgeClick={onEdgeClick}
+                        onPaneClick={onPaneClick}
+                        connectionLineType={ConnectionLineType.SmoothStep}
+                        style={{ backgroundColor: "#F7F9FB" }}
+                    >
                         <Background />
                         <Controls />
                     </ReactFlow>
                 </div>
+                {selectedNode && (
+                    <TableEditor
+                        table={selectedNode.data}
+                        onUpdate={handleTableUpdate}
+                        onClose={() => setSelectedNodeId(null)}
+                    />
+                )}
+                {selectedEdge && (
+                    <EdgeEditor
+                        edge={selectedEdge}
+                        onUpdate={handleEdgeUpdate}
+                        onDelete={handleEdgeDelete}
+                        onClose={() => setSelectedEdgeId(null)}
+                    />
+                )}
             </main>
 
             <footer className="h-8 bg-gray-900">
